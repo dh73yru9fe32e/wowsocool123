@@ -1,0 +1,109 @@
+javascript:(()=>{if(window.__ZEARN_GUI__){window.__ZEARN_GUI__.toggle();return;}const W=window,D=document,$=(s,r=D)=>r.querySelector(s),$$=(s,r=D)=>[...r.querySelectorAll(s)];
+const st={open:true,autoNext:true,autoCheck:false,autoPick:false,reveal:false,highlight:false,fast:false,delay:1200,clicks:0,picks:0,runs:0};
+const log=(m)=>{const el=$('#zg-log');if(el){el.textContent=m;el.classList.remove('zg-flash');void el.offsetWidth;el.classList.add('zg-flash');}};
+const vis=el=>{if(!el)return false;const r=el.getBoundingClientRect(),cs=getComputedStyle(el);return r.width>0&&r.height>0&&cs.visibility!=='hidden'&&cs.display!=='none'&&+cs.opacity>0.05;};
+const fire=(el,type)=>{try{el.dispatchEvent(new MouseEvent(type,{bubbles:true,cancelable:true,view:W,buttons:1}));}catch(e){}};
+const tap=el=>{if(!el)return 0;try{el.scrollIntoView({block:'center',behavior:'smooth'});}catch(e){}['pointerdown','mousedown','pointerup','mouseup','click'].forEach(t=>fire(el,t));try{el.click();}catch(e){}st.clicks++;pulse(el);return 1;};
+const txt=el=>((el.innerText||el.textContent||el.value||el.getAttribute('aria-label')||el.getAttribute('title')||'')+'').replace(/\s+/g,' ').trim().toLowerCase();
+const pulse=el=>{try{el.animate([{transform:'scale(1)',filter:'brightness(1)'},{transform:'scale(.96)',filter:'brightness(1.3)'},{transform:'scale(1)',filter:'brightness(1)'}],{duration:260,easing:'ease-out'});}catch(e){}};
+const btns=()=>$$('button,[role="button"],a,input[type="button"],input[type="submit"],.btn,.Button,[class*="button"],[class*="Button"]');
+const hasAny=(t,words)=>words.some(w=>t===w||t.includes(w));
+const findAction=(groups)=>{for(const g of groups){const b=btns().find(el=>vis(el)&&!el.disabled&&hasAny(txt(el),g));if(b)return b;}return null;};
+const clearHL=()=>{$$('.zg-hl').forEach(el=>el.classList.remove('zg-hl'));$$('.zg-correct').forEach(el=>el.classList.remove('zg-correct'));};
+const highlightTargets=()=>{
+  clearHL();
+  const next=findAction([['next','continue','done','got it','keep going','resume','start',"let's go",'go on','ok','okay']]);
+  const check=findAction([['check','submit','turn in','finish']]);
+  if(next)next.classList.add('zg-hl');
+  if(check)check.classList.add('zg-hl');
+};
+const revealAnswers=()=>{
+  $$('[aria-hidden="true"],.hidden,[hidden],[style*="display: none"],[style*="visibility: hidden"]').forEach(el=>{
+    if(/answer|solution|correct|explain|feedback/i.test(el.className+' '+el.id+' '+(el.getAttribute('data-test')||''))){
+      try{el.hidden=false;el.setAttribute('aria-hidden','false');el.style.display='';el.style.visibility='visible';el.style.opacity='1';}catch(e){}
+    }
+  });
+  const cand=$$('[data-correct="true"],[data-is-correct="true"],[aria-label*="correct" i],[class*="correct" i],[class*="is-correct" i],input[value="1"]');
+  cand.forEach(el=>{const c=el.closest('button,[role="button"],label,li,div')||el;if(vis(c)||vis(el))(vis(c)?c:el).classList.add('zg-correct');});
+  $$('[data-answer],[data-value],[data-solution]').forEach(el=>{if(!el.__zgHint){el.__zgHint=1;const v=el.getAttribute('data-answer')||el.getAttribute('data-solution')||el.getAttribute('data-value');if(v){const tag=D.createElement('span');tag.className='zg-hint';tag.textContent=' '+v;el.appendChild(tag);}}});
+  log('reveal scan done');
+};
+const autoPick=()=>{
+  const picks=$$('[data-correct="true"],[data-is-correct="true"],[aria-checked="false"][aria-label*="correct" i],.correct:not(.selected):not([aria-checked="true"])');
+  for(const el of picks){const t=el.closest('button,[role="button"],label,[tabindex]')||el;if(vis(t)&&!t.disabled){tap(t);st.picks++;log('auto-pick');return true;}}
+  const ins=$$('input[type="radio"],input[type="checkbox"]');
+  for(const i of ins){if(i.checked)continue;const p=i.closest('[data-correct="true"],.correct,[class*="correct"]');if(p&&vis(i)){tap(i.closest('label')||i);st.picks++;log('auto-pick');return true;}}
+  return false;
+};
+const tick=()=>{
+  st.runs++;
+  try{
+    if(st.highlight)highlightTargets();else clearHL();
+    if(st.reveal)revealAnswers();
+    if(st.autoPick)autoPick();
+    if(st.autoCheck){const c=findAction([['check','submit','turn in','finish']]);if(c){tap(c);log('auto-check');return;}}
+    if(st.autoNext){const n=findAction([['next','continue','done','got it','keep going','resume','start',"let's go",'go on','ok','okay','close']]);if(n){tap(n);log('auto-next');return;}}
+  }catch(e){log('tick err');}
+};
+let iv=null;const arm=()=>{clearInterval(iv);iv=setInterval(tick,st.fast?350:Math.max(300,st.delay|0));};
+const setDelay=v=>{st.delay=v;const d=$('#zg-delayv');if(d)d.textContent=v+'ms';if(iv)arm();};
+const css=`
+#zg-root{position:fixed;right:14px;bottom:14px;z-index:2147483647;font:14px/1.2 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;color:#eaf6ff}
+#zg-fab{width:56px;height:56px;border-radius:18px;border:1px solid rgba(255,255,255,.2);background:linear-gradient(135deg,#00d2ff,#3a7bd5,#7f00ff);background-size:200% 200%;animation:zg-g 4s ease infinite;box-shadow:0 10px 30px rgba(0,0,0,.35);color:#fff;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .18s ease,box-shadow .18s ease}
+#zg-fab:active{transform:scale(.92)}#zg-fab:hover{box-shadow:0 14px 34px rgba(0,0,0,.45)}
+#zg-panel{position:absolute;right:0;bottom:68px;width:min(320px,92vw);border-radius:18px;overflow:hidden;background:rgba(16,18,28,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.14);box-shadow:0 20px 50px rgba(0,0,0,.45);transform-origin:bottom right;transition:opacity .22s ease,transform .22s ease;opacity:1;transform:translateY(0) scale(1)}
+#zg-panel.zg-hide{opacity:0;transform:translateY(8px) scale(.96);pointer-events:none}
+#zg-head{padding:12px 14px;background:linear-gradient(135deg,rgba(0,210,255,.25),rgba(127,0,255,.18));display:flex;align-items:center;justify-content:space-between}
+#zg-title{font-weight:700;letter-spacing:.3px}#zg-sub{font-size:11px;opacity:.8}
+#zg-body{padding:12px;display:grid;gap:8px;max-height:60vh;overflow:auto}
+.zg-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 10px;border-radius:12px;background:rgba(255,255,255,.06);transition:background .15s ease,transform .15s ease}
+.zg-row:hover{background:rgba(255,255,255,.1)}
+.zg-name{font-size:13px}
+.zg-btn{appearance:none;border:0;border-radius:10px;padding:7px 10px;font-weight:700;cursor:pointer;color:#fff;background:rgba(255,255,255,.12);transition:all .16s ease}
+.zg-btn.on{background:linear-gradient(135deg,#00c853,#00d2ff);box-shadow:0 0 0 1px rgba(255,255,255,.15) inset}
+.zg-btn:active{transform:scale(.95)}
+.zg-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.zg-wide{width:100%}
+#zg-log{font-size:12px;opacity:.9;padding:10px;border-radius:12px;background:rgba(0,0,0,.25);min-height:18px}
+.zg-flash{animation:zg-f .35s ease}
+#zg-stats{font-size:11px;opacity:.75;text-align:center}
+.zg-hl{outline:3px solid #00e5ff !important;outline-offset:2px !important;box-shadow:0 0 0 6px rgba(0,229,255,.18) !important;transition:outline .2s ease}
+.zg-correct{outline:3px solid #00ff88 !important;box-shadow:0 0 0 6px rgba(0,255,136,.18) !important;position:relative}
+.zg-hint{margin-left:6px;padding:2px 6px;border-radius:8px;background:#00c853;color:#041;font-size:11px;font-weight:700}
+input[type=range]{width:140px}
+@keyframes zg-g{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@keyframes zg-f{from{transform:translateY(2px);opacity:.5}to{transform:translateY(0);opacity:1}}
+`;
+const style=D.createElement('style');style.textContent=css;D.head.appendChild(style);
+const root=D.createElement('div');root.id='zg-root';root.innerHTML=`
+  <div id="zg-panel">
+    <div id="zg-head"><div><div id="zg-title">Zearn GUI</div><div id="zg-sub">safari ipad • tap toggles</div></div><button class="zg-btn" id="zg-close">×</button></div>
+    <div id="zg-body">
+      <div class="zg-row"><div class="zg-name">Auto Next / Continue</div><button class="zg-btn on" data-k="autoNext">ON</button></div>
+      <div class="zg-row"><div class="zg-name">Auto Check / Submit</div><button class="zg-btn" data-k="autoCheck">OFF</button></div>
+      <div class="zg-row"><div class="zg-name">Auto Pick Correct (DOM)</div><button class="zg-btn" data-k="autoPick">OFF</button></div>
+      <div class="zg-row"><div class="zg-name">Reveal / Mark Answers</div><button class="zg-btn" data-k="reveal">OFF</button></div>
+      <div class="zg-row"><div class="zg-name">Highlight Targets</div><button class="zg-btn" data-k="highlight">OFF</button></div>
+      <div class="zg-row"><div class="zg-name">Fast Mode</div><button class="zg-btn" data-k="fast">OFF</button></div>
+      <div class="zg-row"><div class="zg-name">Delay <span id="zg-delayv">1200ms</span></div><input id="zg-delay" type="range" min="300" max="3000" step="100" value="1200"></div>
+      <div class="zg-grid">
+        <button class="zg-btn zg-wide" id="zg-scan">Scan/Reveal Now</button>
+        <button class="zg-btn zg-wide" id="zg-next">Tap Next Now</button>
+      </div>
+      <div id="zg-log">ready</div>
+      <div id="zg-stats">clicks: 0 • picks: 0</div>
+    </div>
+  </div>
+  <div id="zg-fab">⚡</div>`;
+D.body.appendChild(root);
+const panel=$('#zg-panel',root),stats=$('#zg-stats',root);
+const sync=()=>{$$('[data-k]',root).forEach(b=>{const k=b.dataset.k,on=!!st[k];b.classList.toggle('on',on);b.textContent=on?'ON':'OFF';});stats.textContent=`clicks: ${st.clicks} • picks: ${st.picks}`;};
+const tog=()=>{st.open=!st.open;panel.classList.toggle('zg-hide',!st.open);};
+$('#zg-fab',root).onclick=tog;$('#zg-close',root).onclick=tog;
+$$('[data-k]',root).forEach(b=>b.onclick=()=>{const k=b.dataset.k;st[k]=!st[k];if(k==='fast')arm();sync();log(k+' '+(st[k]?'on':'off'));});
+$('#zg-delay',root).oninput=e=>setDelay(+e.target.value);
+$('#zg-scan',root).onclick=()=>{revealAnswers();highlightTargets();log('scan/reveal now');};
+$('#zg-next',root).onclick=()=>{const n=findAction([['next','continue','done','got it','keep going','resume','start',"let's go",'go on','ok','okay','close'],['check','submit','turn in','finish']]);if(n){tap(n);log('manual tap');}else log('no target');sync();};
+setInterval(sync,800);
+W.__ZEARN_GUI__={toggle:tog,state:st};arm();log('armed');
+})();
